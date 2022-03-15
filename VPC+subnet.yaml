@@ -11,16 +11,22 @@ Resources:
       CidrBlock: 192.168.0.0/16
       Tags:
         - Key: Name
-          Value: 'MainVPC'
+          Value: 'VPC-P10'
+#
+# Create the private subnet
+#
   PrivateSubnetC:
     Type: AWS::EC2::Subnet
     Properties:
-      AvailabilityZone: us-east-1a
-      CidrBlock: 192.168.2.0/24
+      AvailabilityZone: us-east-1c
+      CidrBlock: 192.168.0.0/24
       Tags:
         - Key: Name
-          Value: 'MainVPC-private-a'
+          Value: 'VPC-P10-private'
       VpcId: !Ref MyVPC
+#
+# Create the public subnet
+#
   PublicSubnetA:
     Type: AWS::EC2::Subnet
     Properties:
@@ -28,31 +34,35 @@ Resources:
       CidrBlock: 192.168.10.0/24
       Tags:
         - Key: Name
-          Value: 'MainVPC-private-a'
+          Value: 'VPC-P10-public-a'
       VpcId: !Ref MyVPC
   PublicSubnetB:
     Type: AWS::EC2::Subnet
     Properties:
       AvailabilityZone: us-east-1b
-      CidrBlock: 192.168.11.0/24
+      CidrBlock: 192.168.110.0/24
       Tags:
         - Key: Name
-          Value: 'MainVPC-private-a'
+          Value: 'VPC-P10-public-b'
       VpcId: !Ref MyVPC
 #
 #  Gateway configuration with 2 NAT gateway and elastic IP
+#  First Create and attache the gateway to the VPC
 #
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties: 
       Tags:
         - Key: Name
-          Value: 'MainVPC-InternetGateway'
+          Value: 'VPC-P10-InternetGateway'
   AttachInternetGateway:
     Type: 'AWS::EC2::VPCGatewayAttachment'
     Properties:
       VpcId: !Ref MyVPC
       InternetGatewayId: !Ref InternetGateway
+#
+#  Create elastique IP for the NAT gateway
+#
   NatEipA:
     Type: AWS::EC2::EIP
     Properties:
@@ -61,6 +71,9 @@ Resources:
     Type: AWS::EC2::EIP
     Properties:
       Domain: vpc
+#
+#  Create the NAT gateway and attache elastique IP
+#
   NatGatewayA:
     DependsOn: AttachInternetGateway
     Type: AWS::EC2::NatGateway
@@ -88,7 +101,7 @@ Resources:
       VpcId: !Ref MyVPC
       Tags:
         - Key: Name
-          Value: MainVPC-route-public-a
+          Value: VPC-P10-Public-route-a
   AttachPublicRouteTableA:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -100,14 +113,16 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
       RouteTableId: !Ref PublicRouteTableA
-      
+#
+# Create route table B
+#
   PublicRouteTableB:
     Type: AWS::EC2::RouteTable
     Properties: 
       VpcId: !Ref MyVPC
       Tags:
         - Key: Name
-          Value: MainVPC-route-public-b
+          Value: VPC-P10-Public-route-b
   AttachPublicRouteTableB:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -122,21 +137,21 @@ Resources:
 #
 #  Routing private configuration
 #
-  PrivateRouteTableA:
+  PrivateRouteTableC:
     Type: AWS::EC2::RouteTable
     Properties: 
       VpcId: !Ref MyVPC
       Tags:
         - Key: Name
-          Value: MainVPC-route-private-a
-  AttachPrivateRouteTableA:
+          Value: VPC-P10-Private-route-c
+  AttachPrivateRouteTableC:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref PrivateRouteTableA
-      SubnetId: !Ref PrivateSubnetA
-  PrivateRouteA:
+      RouteTableId: !Ref PrivateRouteTableC
+      SubnetId: !Ref PrivateSubnetC
+  PrivateRouteC:
     Type: AWS::EC2::Route
     Properties: 
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref NatGatewayA
-      RouteTableId: !Ref PrivateRouteTableA      
+      RouteTableId: !Ref PrivateRouteTableC      
