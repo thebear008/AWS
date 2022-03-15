@@ -44,7 +44,6 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           sudo systemctl start httpd
-
   EC2ScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
@@ -61,11 +60,40 @@ Resources:
       MaxSize: 1
       MinSize: 1
       TargetGroupARNs:
-        - !Ref EC2TargetGroup
-          
+        - !Ref EC2TargetGroup          
   EC2TargetGroup: 
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties: 
       Port: 80
       Protocol: HTTP
+      VpcId: !Ref VpcIdentifier      
+  EC2LoadBalancer: 
+    Type:AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: application
+      Scheme:internet-facing
+      SecurityGroups:
+        - !Ref EC2LoadBalancerSecurityGroup
+      Subnets:  !Ref PublicSubnets      
+  EC2LoadBalancerSecurityGroup:
+    Type:AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Website EC2 security group 
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress: 
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
       VpcId: !Ref VpcIdentifier
+  EC2LoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+        LoadBalancerArn: !Ref EC2LoadBalancer
+        Port: 80
+        Protocol: HTTP
+        DefaultActions:
+            - Type: Forward
+              TargetGroupArn: !Ref EC2TargetGroup
