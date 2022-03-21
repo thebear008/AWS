@@ -155,3 +155,5 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref NatGatewayA
       RouteTableId: !Ref PrivateRouteTableC      
+
+      VOIR POUR METTRE MAIN LE SUBNET C
