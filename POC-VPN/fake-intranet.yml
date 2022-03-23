@@ -1,0 +1,130 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  AWS CloudFormation VPC Template for fake intranet
+Parameters:
+  VpcIdentifier:
+    Type: String
+    Description: The VPC identifier to deploy.
+  SubnetIdentifier:
+    Type: String
+    Description: The Subnet identifier to deploy.
+  IpAddressDataCenter:
+    Type: String
+    Description: Public IP of datacenter
+  AmiIdentifier:
+    Type: String
+    Description: The AMI identifier to deploy.
+    Default: ami-0960de83329d12f2f
+  InstanceIdentifier:
+    Type: String
+    Description: The Instance Type identifier.
+    Default: t2.micro
+  KeyNameIdentifier:
+    Type: String
+    Description: The KeyPair to connect to EC2
+    Default: ami-amazon
+  SshIp:
+    Type: String
+    Description: IP allowed to SSH
+    Default: 0.0.0.0/0
+Resources:
+  VpnClientEC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: VPN client EC2 security group
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SshIp
+        - IpProtocol: icmp
+          CidrIp: 0.0.0.0/0
+          FromPort: -1
+          ToPort: -1
+      VpcId: !Ref VpcIdentifier
+  IntranetEC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Intranet EC2 security group
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SshIp
+        - IpProtocol: icmp
+          CidrIp: 0.0.0.0/0
+          FromPort: -1
+          ToPort: -1
+      VpcId: !Ref VpcIdentifier
+  VpnClientEC2Server:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiIdentifier
+      InstanceType: !Ref InstanceIdentifier
+      KeyName: !Ref KeyNameIdentifier
+      SecurityGroupIds:
+        - !Ref VpnClientEC2SecurityGroup
+      SubnetId: !Ref SubnetIdentifier
+  EipVpnClientEC2:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  EipVpnClientEC2Association:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      EIP: !Ref EipVpnClientEC2
+      InstanceId: !Ref VpnClientEC2Server
+  IntranetEC2Server:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiIdentifier
+      InstanceType: !Ref InstanceIdentifier
+      KeyName: !Ref KeyNameIdentifier
+      SecurityGroupIds:
+        - !Ref VpnClientEC2SecurityGroup
+      SubnetId: !Ref SubnetIdentifier
+  CustomerGWObject:
+    Type: AWS::EC2::CustomerGateway
+    Properties:
+      IpAddress: !Ref IpAddressDataCenter
+      Type: ipsec.1
+      BgpAsn: 65534
+  VirtualPrivateGWObject:
+    Type: AWS::EC2::VPNGateway
+    Properties:
+      Type: ipsec.1
+  AttachVPG:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VpcIdentifier
+      VpnGatewayId: !Ref VirtualPrivateGWObject
+  VPNConnectionObject:
+    Type: AWS::EC2::VPNConnection
+    Properties:
+      VpnGatewayId: !Ref VirtualPrivateGWObject
+      CustomerGatewayId: !Ref CustomerGWObject
+      StaticRoutesOnly: true
+      Type: ipsec.1
+  VPNConnectionRouteOnPrem:
+    Type: AWS::EC2::VPNConnectionRoute
+    Properties:
+      VpnConnectionId: !Ref VPNConnectionObject
+      DestinationCidrBlock: 172.17.0.0/16
+  VPNConnectionRouteOnAws:
+    Type: AWS::EC2::VPNConnectionRoute
+    Properties:
+      VpnConnectionId: !Ref VPNConnectionObject
+      DestinationCidrBlock: 10.0.0.0/16
+# cannot do that before aws cli command to update local and remote Cidr for VPN connection
+#  EnableRoutePropagation:
+#    Type: AWS::EC2::VPNGatewayRoutePropagation
+#    Properties:
+#      RouteTableIds:
+#        - !Ref RouteMainVpcIdentifier
+#      VpnGatewayId: !Ref VirtualPrivateGWObject
