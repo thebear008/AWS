@@ -1,0 +1,133 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  AWS CloudFormation Template for fake datacenter
+Parameters:
+  VpcCidrBlock:
+    Type: String
+    Default: 172.17.0.0/16
+    Description: Enter the main VPC CIDR block.
+  AmiIdentifier:
+    Type: String
+    Description: The AMI identifier to deploy.
+    Default: ami-0960de83329d12f2f
+  InstanceIdentifier:
+    Type: String
+    Description: The Instance Type identifier.
+    Default: t2.micro
+  KeyNameIdentifier:
+    Type: String
+    Description: The KeyPair to connect to EC2
+    Default: ami-amazon
+  SshIp:
+    Type: String
+    Description: IP allowed to SSH
+    Default: 0.0.0.0/0
+Resources:
+  VPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: !Ref VpcCidrBlock
+      Tags:
+        - Key: Name
+          Value: 'MainVPC-DC'
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: eu-west-3a
+      CidrBlock: !Select [ 100, !Cidr [ !GetAtt VPC.CidrBlock, 101, 8 ]]
+      Tags:
+        - Key: Name
+          Value: 'MainVPC-DC-public-a'
+      VpcId: !Ref VPC
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: 'MainVPC-DC-InternetGateway'
+  AttachInternetGateway:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+  PublicRouteTableA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: MainVPC-DC-route-public-a
+  AttachPublicRouteTableA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTableA
+      SubnetId: !Ref PublicSubnetA
+  PublicRouteA:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicRouteTableA
+  VPNEC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: VPN EC2 security group
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SshIp
+        - IpProtocol: icmp
+          CidrIp: 0.0.0.0/0
+          FromPort: -1
+          ToPort: -1
+      VpcId: !Ref VPC
+  EC2SecurityGroupFileServer:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: EC2 security group for fileserver
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Select [ 100, !Cidr [ !GetAtt VPC.CidrBlock, 101, 8 ]]
+        - IpProtocol: icmp
+          CidrIp: 0.0.0.0/0
+          FromPort: -1
+          ToPort: -1
+      VpcId: !Ref VPC
+  EipEC2:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  EC2Server:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiIdentifier
+      InstanceType: !Ref InstanceIdentifier
+      KeyName: !Ref KeyNameIdentifier
+      SecurityGroupIds:
+        - !Ref VPNEC2SecurityGroup
+      SubnetId: !Ref PublicSubnetA
+      # allow ip forwarding
+      SourceDestCheck: false
+  EipEC2Association:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      EIP: !Ref EipEC2
+      InstanceId: !Ref EC2Server
+  EC2ServerFile:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiIdentifier
+      InstanceType: !Ref InstanceIdentifier
+      KeyName: !Ref KeyNameIdentifier
+      SecurityGroupIds:
+        - !Ref EC2SecurityGroupFileServer
+      SubnetId: !Ref PublicSubnetA

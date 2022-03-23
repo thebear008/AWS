@@ -1,0 +1,182 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  AWS CloudFormation VPC Template
+Parameters:
+  VpcCidrBlock:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: Enter the main VPC CIDR block.
+Resources:
+  VPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: !Ref VpcCidrBlock
+      Tags:
+        - Key: Name
+          Value: 'MainVPC'
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: eu-west-3a
+      CidrBlock: !Select [ 0, !Cidr [ !GetAtt VPC.CidrBlock, 1, 8 ]]
+      Tags:
+        - Key: Name
+          Value: 'MainVPC-private-a'
+      VpcId: !Ref VPC
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: eu-west-3b
+      CidrBlock: !Select [ 1, !Cidr [ !GetAtt VPC.CidrBlock, 2, 8 ]]
+      Tags:
+        - Key: Name
+          Value: 'MainVPC-private-b'
+      VpcId: !Ref VPC
+  PrivateSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: eu-west-3c
+      CidrBlock: !Select [ 2, !Cidr [ !GetAtt VPC.CidrBlock, 3, 8 ]]
+      Tags:
+        - Key: Name
+          Value: 'MainVPC-private-c'
+      VpcId: !Ref VPC
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: eu-west-3a
+      CidrBlock: !Select [ 100, !Cidr [ !GetAtt VPC.CidrBlock, 101, 8 ]]
+      Tags:
+        - Key: Name
+          Value: 'MainVPC-public-a'
+      VpcId: !Ref VPC
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: eu-west-3b
+      CidrBlock: !Select [ 101, !Cidr [ !GetAtt VPC.CidrBlock, 102, 8 ]]
+      Tags:
+        - Key: Name
+          Value: 'MainVPC-public-b'
+      VpcId: !Ref VPC
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: 'MainVPC-InternetGateway'
+  AttachInternetGateway:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+  NatEipA:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  NatEipB:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  NatGatewayA:
+    DependsOn: AttachInternetGateway
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEipA.AllocationId
+      SubnetId: !Ref PublicSubnetA
+      Tags:
+        - Key: Name
+          Value: MainVPC-nat-a
+  NatGatewayB:
+    DependsOn: AttachInternetGateway
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEipB.AllocationId
+      SubnetId: !Ref PublicSubnetB
+      Tags:
+        - Key: Name
+          Value: MainVPC-nat-b
+  PublicRouteTableA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: MainVPC-route-public-a
+  AttachPublicRouteTableA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTableA
+      SubnetId: !Ref PublicSubnetA
+  PublicRouteTableB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: MainVPC-route-public-b
+  AttachPublicRouteTableB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTableB
+      SubnetId: !Ref PublicSubnetB
+  PrivateRouteTableA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: MainVPC-route-private-a
+  AttachPrivateRouteTableA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableA
+      SubnetId: !Ref PrivateSubnetA
+  PrivateRouteTableB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: MainVPC-route-private-b
+  AttachPrivateRouteTableB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableB
+      SubnetId: !Ref PrivateSubnetB
+  PrivateRouteTableC:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: MainVPC-route-private-c
+  AttachPrivateRouteTableC:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableC
+      SubnetId: !Ref PrivateSubnetC
+  PublicRouteA:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicRouteTableA
+  PublicRouteB:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicRouteTableB
+  PrivateRouteA:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayA
+      RouteTableId: !Ref PrivateRouteTableA
+  PrivateRouteB:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayB
+      RouteTableId: !Ref PrivateRouteTableB
