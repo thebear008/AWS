@@ -4,7 +4,13 @@ Description: >-
 Parameters: 
   VPCIP:
     Type: String
-    Decription: The CIDR for VPC
+    Description: The CIDR for VPC
+  Choice-Ami:
+    Type: String
+    Description: Choose the Ami image
+  Choice-Instance:
+    Type: String
+    Description: Choose the type of instance
     
 Resources:
 #
@@ -55,3 +61,38 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
       RouteTableId: !Ref PublicRouteTableA
+#
+  # Infrastructure
+  #
+  InfraEC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Infra EC2 security group
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22          
+      VpcId: !Ref MyVPC
+  EipEC2:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: MyVPC
+  InfraLaunchConfig:
+    Type: AWS::EC2::instance
+    Properties:
+      AssociatePublicIpAddress: false
+      ImageId: !Ref choice-ami
+      InstanceType: t2.micro
+      SecurityGroups:
+        - !Ref InfraEC2SecurityGroup
+  EC2Server:
+    Type: AWS::EC2::instance
+    Properties:
+      AssociatePublicIpAddress: false
+      ImageId: !Ref choice-ami
+      InstanceType: t2.micro
+      SecurityGroups:
+        - !Ref InfraEC2SecurityGroup
