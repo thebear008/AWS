@@ -77,7 +77,7 @@ aws ec2 describe-vpcs | jq '.Vpcs[] | {ip: .CidrBlock, id: .VpcId}'
   "id": "vpc-09f7903d5a02efbdf"
 }
 
-aws ec2 describe-subnets | jq '.Subnets[] | {id: .SubnetId, ip: .CidrBlock, az: .AvailabilityZone, vpcid: .VpcId}'                                 [11/79]
+aws ec2 describe-subnets | jq '.Subnets[] | {id: .SubnetId, ip: .CidrBlock, az: .AvailabilityZone, vpcid: .VpcId}'
 {
   "id": "subnet-06edc8154728f5c7a",
   "ip": "10.0.2.0/24",
@@ -150,9 +150,9 @@ aws ec2 describe-addresses | jq '.Addresses[] | {ip: .PublicIp, privIp: .Private
 ```
 5. Export variables
 ```
-export IpAddressDataCenter=15.188.69.53
-export VpcIdentifier=vpc-008defb045a3dda0e
-export SubnetIdentifier=subnet-06edc8154728f5c7a
+export IpAddressDataCenter=$(aws ec2 describe-addresses | jq '.Addresses[] | {ip: .PublicIp, privIp: .PrivateIpAddress}' | grep -B 1 172.17 | head -n 1 | grep -o -E "([0-9]{1,3}.){3}[0-9]{1,3}")
+export VpcIdentifier=$(aws ec2 describe-vpcs | jq '.Vpcs[] | {ip: .CidrBlock, id: .VpcId}' | grep -A 1  10.0.0.0 | tail -n 1 | grep -o -E 'vpc-[^"]+')
+export SubnetIdentifier=$(aws ec2 describe-subnets | jq '.Subnets[] | {id: .SubnetId, ip: .CidrBlock, az: .AvailabilityZone, vpcid: .VpcId}' | grep -A 2 -B 2 10.0.0.0 | grep -o -E 'subnet-[^"]+')
 ```
 6. Create stack
 ```
@@ -183,10 +183,12 @@ aws ec2 describe-vpn-connections | jq '.VpnConnections[] | {id: .VpnConnectionId
 {
   "id": "vpn-024a20485d89be954"
 }
+
+export VpnConnectionIdentifier=$(aws ec2 describe-vpn-connections | jq '.VpnConnections[] | {id: .VpnConnectionId}' | grep -o -E 'vpn-[^"]+')
 ```
 9. Modify VPN Connection Option
 ```
-aws ec2 modify-vpn-connection-options --vpn-connection-id vpn-024a20485d89be954 --local-ipv4-network-cidr 172.17.0.0/16 --remote-ipv4-network-cidr 10.0.0.0/16
+aws ec2 modify-vpn-connection-options --vpn-connection-id $VpnConnectionIdentifier --local-ipv4-network-cidr 172.17.0.0/16 --remote-ipv4-network-cidr 10.0.0.0/16
 ```
 10. Get Route Table ID from VPC
 ```
@@ -194,6 +196,8 @@ aws ec2 describe-route-tables --filter Name=vpc-id,Values=$VpcIdentifier Name=as
 {
   "id": "rtb-00b70dbb441a2eb18"
 }
+
+export RouteTableIdentifier=$(aws ec2 describe-route-tables --filter Name=vpc-id,Values=$VpcIdentifier Name=association.main,Values=true | jq '.RouteTables[] | {id: .RouteTableId}' | grep -o -E 'rtb-[^"]+')
 ```
 11. Get VGW ID
 ```
@@ -206,37 +210,20 @@ aws directconnect describe-virtual-gateways
         }
     ]
 }
+
+export VirtualGatewayIdentifier=$(aws directconnect describe-virtual-gateways | grep -o -E 'vgw-[^"]+')
+
 ```
 12. Propagate Route
 ```
-aws ec2 enable-vgw-route-propagation --gateway-id vgw-0fdba6acd41a5c08d --route-table-id rtb-00b70dbb441a2eb18
+aws ec2 enable-vgw-route-propagation --gateway-id $VirtualGatewayIdentifier --route-table-id $RouteTableIdentifier
 ```
 13. Download VPN server configuration for openSwan
-14. Get Ips from EC2
+14. Connect SSH to future VPN server
 ```
-aws ec2 describe-instances | jq '.Reservations[] ' | jq '.Instances[] | {private: .PrivateIpAddress, public: .PublicIpAddress}'
-{
-  "private": "172.17.100.87",
-  "public": "15.188.69.53"
-}
-{
-  "private": "172.17.100.83",
-  "public": null
-}
-{
-  "private": "10.0.2.210",
-  "public": null
-}
-{
-  "private": "10.0.2.112",
-  "public": "52.47.190.34"
-}
+ssh -i ami-amazon.pem ec2-user@$IpAddressDataCenter
 ```
-15. Connect SSH to future VPN server
-```
-ssh -i ami-amazon.pem ec2-user@15.188.69.53
-```
-16. Execute vpn.sh
+15. Execute vpn.sh
 ```
 sudo vpn.sh
 ```
